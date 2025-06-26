@@ -1,1 +1,6 @@
-# Macrophage_Bulk_18.06.25
+# Macrophage_Bulk
+
+
+source /arf/home/reuyar/miniconda3/etc/profile.d/conda.sh
+conda activate rnaseq_mini
+
