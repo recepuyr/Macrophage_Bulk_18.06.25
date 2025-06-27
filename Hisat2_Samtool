@@ -1,0 +1,104 @@
+nano /truba/home/reuyar/Macrophage_19.06.25/scripts/hisat2_align_full_24h.slurm
+
+
+#!/bin/bash
+#SBATCH -p orfoz
+#SBATCH -C weka
+#SBATCH -N 1
+#SBATCH -n 55
+#SBATCH -J hisat2_align_full
+#SBATCH -o /arf/scratch/reuyar/Macrophage_19.06.25/logs/hisat2/hisat2_align_full_%j.out
+#SBATCH -e /arf/scratch/reuyar/Macrophage_19.06.25/logs/hisat2/hisat2_align_full_%j.err
+#SBATCH --time=24:00:00
+#SBATCH --mem=110000
+#SBATCH --chdir=/arf/scratch/reuyar/Macrophage_19.06.25
+
+# Conda env
+source /arf/home/reuyar/miniconda3/etc/profile.d/conda.sh
+conda activate rnaseq_mini
+
+# paths
+RAW_DIR=/arf/scratch/reuyar/Macrophage_19.06.25/trimmed
+OUT_DIR=/arf/scratch/reuyar/Macrophage_19.06.25/alignment
+LOG_DIR=/arf/scratch/reuyar/Macrophage_19.06.25/logs/hisat2
+INDEX_PATH=/arf/scratch/reuyar/genomes/mm10/hisat2_index/mm10
+
+mkdir -p $OUT_DIR $LOG_DIR
+
+# sample list
+samples=(
+olfr2KO-AcLDL-1_S117
+olfr2KO-AcLDL-2_S118
+olfr2KO-AcLDL-3_S119
+olfr2KO-FC-1-_S114
+olfr2KO-FC-2_S115
+olfr2KO-FC-3_S116
+olfr2KO-NC-1_S123
+olfr2KO-NC-2_S124
+olfr2KO-NC-3_S125
+olfr2KO-OxLDL-1_S120
+olfr2KO-OxLDL-2_S121
+olfr2KO-OxLDL-3_S122
+olfr2WT-AcLDL-1_S129
+olfr2WT-AcLDL-2_S130
+olfr2WT-AcLDL-3_S131
+olfr2WT-FC-1_S126
+olfr2WT-FC-2_S127
+olfr2WT-FC-3_S128
+olfr2WT-NC-1_S135
+olfr2WT-NC-2_S136
+olfr2WT-NC-3_S137
+olfr2WT-OxLDL-1_S132
+olfr2WT-OxLDL-2_S133
+olfr2WT-OxLDL-3_S134
+)
+
+# Alignment proccess
+for sample in "${samples[@]}"; do
+  echo "Processing $sample..."
+  hisat2 -p 55 -x $INDEX_PATH \
+    -1 $RAW_DIR/${sample}_R1_trimmed.fastq.gz \
+    -2 $RAW_DIR/${sample}_R2_trimmed.fastq.gz \
+    2> $LOG_DIR/${sample}.log \
+    | samtools sort -@ 4 -o $OUT_DIR/${sample}.bam -
+done
+
+
+sbatch /truba/home/reuyar/Macrophage_19.06.25/scripts/hisat2_align_full_24h.slurm
+
+
+
+
+######samtoool_indexing
+
+
+nano /truba/home/reuyar/Macrophage_19.06.25/scripts/samtools_index_all.slurm
+
+
+#!/bin/bash
+#SBATCH -p orfoz
+#SBATCH -C weka
+#SBATCH -N 1
+#SBATCH -n 55
+#SBATCH -J samtools_index
+#SBATCH -o /arf/scratch/reuyar/Macrophage_19.06.25/logs/samtools_index_%j.out
+#SBATCH -e /arf/scratch/reuyar/Macrophage_19.06.25/logs/samtools_index_%j.err
+#SBATCH --time=01:00:00
+#SBATCH --mem=10000
+#SBATCH --chdir=/arf/scratch/reuyar/Macrophage_19.06.25
+
+# Conda ortamını yükle
+source /arf/home/reuyar/miniconda3/etc/profile.d/conda.sh
+conda activate rnaseq_mini
+
+# BAM dosyalarını indexle
+for bam in alignment/*.bam; do
+  echo "Indexing $bam"
+  samtools index -@ 8 "$bam"
+done
+
+
+sbatch /truba/home/reuyar/Macrophage_19.06.25/scripts/samtools_index_all.slurm
+
+
+
