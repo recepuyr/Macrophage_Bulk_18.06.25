@@ -1,0 +1,32 @@
+nano /truba/home/reuyar/Macrophage_19.06.25/scripts/featureCounts_count.slurm
+
+
+#!/bin/bash
+#SBATCH -p orfoz
+#SBATCH -C weka
+#SBATCH -N 1
+#SBATCH -n 55
+#SBATCH -J featureCounts
+#SBATCH -o /arf/scratch/reuyar/Macrophage_19.06.25/logs/featureCounts/featureCounts_%j.out
+#SBATCH -e /arf/scratch/reuyar/Macrophage_19.06.25/logs/featureCounts/featureCounts_%j.err
+#SBATCH --time=04:00:00
+#SBATCH --mem=100000
+#SBATCH --chdir=/arf/scratch/reuyar/Macrophage_19.06.25
+
+# === Conda ortamı ===
+source /arf/home/reuyar/miniconda3/etc/profile.d/conda.sh
+conda activate rnaseq_mini
+
+# === Dizinler ===
+BAM_DIR=/arf/scratch/reuyar/Macrophage_19.06.25/alignment
+GTF=/arf/scratch/reuyar/genomes/mm10/mm10.gtf
+OUT_DIR=/arf/scratch/reuyar/Macrophage_19.06.25/counts
+LOG_DIR=/arf/scratch/reuyar/Macrophage_19.06.25/logs/featureCounts
+
+mkdir -p $OUT_DIR $LOG_DIR
+
+# === featureCounts ===
+featureCounts -T 55 -a $GTF -o $OUT_DIR/featureCounts_all_samples.count \
+  -g gene_id -t exon \
+  -p -B -C \
+  $BAM_DIR/*.bam
