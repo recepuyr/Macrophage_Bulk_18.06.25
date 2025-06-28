@@ -1,9 +1,7 @@
 nano /arf/scratch/reuyar/Macrophage_19.06.25/counts/sample_metadata.tsv
 
-
-
 sample	group
-olfr2KO-AcLDL-1_S117	KO_AcLDL
+olfr2KO-AcLDL-1_S117	KO_AcLDL    
 olfr2KO-AcLDL-2_S118	KO_AcLDL
 olfr2KO-AcLDL-3_S119	KO_AcLDL
 olfr2KO-FC-1-_S114	KO_FC
@@ -27,3 +25,34 @@ olfr2WT-NC-3_S137	WT_NC
 olfr2WT-OxLDL-1_S132	WT_OxLDL
 olfr2WT-OxLDL-2_S133	WT_OxLDL
 olfr2WT-OxLDL-3_S134	WT_OxLDL
+
+NC (KO VS WT)
+OXLDL (KO VS WT)
+ACLDL (KO VS WT)
+FC (KO VS WT)
+WT (OXLDL VS ACLDL)
+KO (OXLDL VS ACLDL)
+
+1. KO_NC vs WT_NC
+2. KO_OxLDL vs WT_OxLDL
+3. KO_AcLDL vs WT_AcLDL
+4. KO_FC  vs WT_FC
+5. WT_OxLDL vs WT_AcLDL
+6. KO_OxLDL vs WT_OxLDL
+7. KO_OxLDL vs KO_NC
+8. KO_AcLDL vs KO_NC
+9. WT_OxLDL vs WT_NC
+10. WT_AcLDL vs WT_NC
+
+
+
+
+
+
+
+
+
+
+
+
+
