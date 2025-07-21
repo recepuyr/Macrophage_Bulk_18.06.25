@@ -1,0 +1,37 @@
+#!/bin/bash
+#SBATCH -J align_trimmed
+#SBATCH -p orfoz
+#SBATCH -C weka
+#SBATCH -N 1
+#SBATCH -n 55
+#SBATCH --mem=110000
+#SBATCH --time=48:00:00
+#SBATCH -o /arf/scratch/reuyar/Macrophage_19.06.25/trimmed_16.07.2025/logs/align_%j.out
+#SBATCH -e /arf/scratch/reuyar/Macrophage_19.06.25/trimmed_16.07.2025/logs/align_%j.err
+
+# PATH'e hisat2 ve samtools ekleniyor
+export PATH=/arf/home/reuyar/miniconda3/envs/rnaseq_mini/bin:$PATH
+
+# Klasör tanımları
+READ_DIR="/arf/scratch/reuyar/Macrophage_19.06.25/trimmed_16.07.2025"
+ALIGN_DIR="${READ_DIR}/alignment"
+INDEX="/arf/scratch/reuyar/Macrophage_19.06.25/genome/mm10/mm10_index"
+
+# Alignment işlemi
+for r1 in ${READ_DIR}/*_trim_1.fastq; do
+  sample=$(basename "$r1" _trim_1.fastq)
+  r2=${READ_DIR}/${sample}_trim_2.fastq
+
+  echo "Aligning $sample"
+
+  hisat2 -p 8 -x $INDEX -1 $r1 -2 $r2 -S ${ALIGN_DIR}/${sample}.sam
+
+  samtools view -@ 4 -bS ${ALIGN_DIR}/${sample}.sam > ${ALIGN_DIR}/${sample}.bam
+  samtools sort -@ 4 -o ${ALIGN_DIR}/${sample}_sorted.bam ${ALIGN_DIR}/${sample}.bam
+  samtools index ${ALIGN_DIR}/${sample}_sorted.bam
+
+  rm ${ALIGN_DIR}/${sample}.sam
+  rm ${ALIGN_DIR}/${sample}.bam
+done
+
+
