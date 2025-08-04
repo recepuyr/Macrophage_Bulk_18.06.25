@@ -3,4 +3,277 @@ library(DESeq2)
 
 
 
+# 📌 Sayım dosyasını oku
+counts <- read.csv("count_corrected.csv", row.names = 1, check.names = FALSE)
+
+# 📌 Metadata dosyasını (zaten bellekte varsa geçilebilir)
+metadata <- read.table(header = TRUE, text = "
+SampleName	Group	SampleCode
+olfr2KO-OxLDL-1_S120	KO_OxLDL	KO_OxLDL-1
+olfr2KO-OxLDL-2_S121	KO_OxLDL	KO_OxLDL-2
+olfr2KO-OxLDL-3_S122	KO_OxLDL	KO_OxLDL-3
+olfr2KO-FC-1-_S114	KO_FC	KO_FC-1
+olfr2KO-FC-2_S115	KO_FC	KO_FC-2
+olfr2KO-FC-3_S116	KO_FC	KO_FC-3
+olfr2KO-NC-1_S123	KO_NC	KO_NC-1
+olfr2KO-NC-2_S124	KO_NC	KO_NC-2
+olfr2WT-FC-2_S127	WT_FC	WT_FC-2
+olfr2KO-AcLDL-1_S117	KO_AcLDL	KO_AcLDL-1
+olfr2KO-AcLDL-2_S118	KO_AcLDL	KO_AcLDL-2
+olfr2KO-AcLDL-3_S119	KO_AcLDL	KO_AcLDL-3
+olfr2WT-OxLDL-1_S132	WT_OxLDL	WT_OxLDL-1
+olfr2WT-AcLDL-2_S130	WT_AcLDL	WT_AcLDL-2
+olfr2WT-AcLDL-3_S131	WT_AcLDL	WT_AcLDL-3
+olfr2WT-FC-1_S126	WT_FC	WT_FC-1
+olfr2KO-NC-3_S125	KO_NC	KO_NC-3
+olfr2WT-FC-3_S128	WT_FC	WT_FC-3
+olfr2WT-NC-1_S135	WT_NC	WT_NC-1
+olfr2WT-NC-2_S136	WT_NC	WT_NC-2
+olfr2WT-NC-3_S137	WT_NC	WT_NC-3
+olfr2WT-AcLDL-1_S129	WT_AcLDL	WT_AcLDL-1
+olfr2WT-OxLDL-2_S133	WT_OxLDL	WT_OxLDL-2
+olfr2WT-OxLDL-3_S134	WT_OxLDL	WT_OxLDL-3
+")
+
+# 📌 Sadece metadata’daki örnekler kalsın
+counts <- counts[, metadata$SampleName]
+
+# 📌 Metadata sıralamasını count kolon sırasına göre eşle
+metadata <- metadata[match(colnames(counts), metadata$SampleName), ]
+rownames(metadata) <- metadata$SampleName
+
+# 🧪 Kontrol: tüm isimler aynı sırada mı?
+stopifnot(all(colnames(counts) == rownames(metadata)))
+
+# ✅ DESeq2 objesi oluşturulabilir
+dds <- DESeqDataSetFromMatrix(countData = round(counts),
+                              colData = metadata,
+                              design = ~ Group)
+
+
+
+
+dds <- DESeq(dds)
+
+
+
+# 📁 Kayıt klasörü
+outdir_base <- "/Users/merveyilmaz/Desktop/USA_bioinformatic/Macrophage_19.06.25/Trimmed_data_21_07.25/deseq2_results/"
+dir.create(outdir_base, recursive = TRUE, showWarnings = FALSE)
+
+# 🔁 Tüm grupları sırayla karşılaştır
+all_groups <- levels(dds$Group)
+combinations <- combn(all_groups, 2, simplify = FALSE)
+
+for (cmp in combinations) {
+  grp1 <- cmp[1]
+  grp2 <- cmp[2]
+  cmp_name <- paste0(grp1, "_vs_", grp2)
+  
+  # 📂 Alt klasör oluştur
+  outdir <- file.path(outdir_base, cmp_name)
+  dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
+  
+  # 🔍 Karşılaştırmayı yap
+  res <- results(dds, contrast = c("Group", grp1, grp2))
+  res <- lfcShrink(dds, contrast = c("Group", grp1, grp2), res = res, type = "ashr")
+  
+  # ⏱ Filtrele ve sırala
+  res_df <- as.data.frame(res) %>%
+    rownames_to_column("GeneID") %>%
+    arrange(padj)
+  
+  # 💾 Kaydet
+  write.csv(res_df, file.path(outdir, paste0("DESeq2_", cmp_name, "_results.csv")), row.names = FALSE)
+}
+
+
+
+library(tidyverse)
+
+# 📁 Karşılaştırma klasörlerinin olduğu ana klasör
+base_dir <- "/Users/merveyilmaz/Desktop/USA_bioinformatic/Macrophage_19.06.25/Trimmed_data_21_07.25/deseq2_results_23.07.2025"
+folders <- list.dirs(base_dir, recursive = FALSE)
+
+# 🔁 Her klasörü sırayla işle
+for (folder in folders) {
+  message("▶️ İşleniyor: ", folder)
+  
+  # 📄 Dosyayı bul
+  csv_file <- list.files(folder, pattern = "_results.csv$", full.names = TRUE)
+  
+  # ⛔ Dosya yoksa atla
+  if (length(csv_file) == 0) {
+    message("⛔ CSV dosyası bulunamadı: ", folder)
+    next
+  }
+  
+  # ✅ Dosyayı oku ve filtrele
+  tryCatch({
+    df <- read.csv(csv_file[1])
+    
+    filtered <- df %>%
+      filter(!is.na(padj),
+             abs(log2FoldChange) >= 1,
+             padj < 0.05)
+    
+    # 💾 Kaydet
+    out_file <- file.path(folder, "filtered_DEGs.csv")
+    write.csv(filtered, out_file, row.names = FALSE)
+    message("✅ Kaydedildi: ", out_file)
+    
+  }, error = function(e) {
+    message("❌ Hata oluştu: ", e$message)
+  })
+}
+
+
+
+
+library(tidyverse)
+
+# 📁 Ana dizin
+base_dir <- "/Users/merveyilmaz/Desktop/USA_bioinformatic/Macrophage_19.06.25/Trimmed_data_21_07.25/deseq2_results_23.07.2025"
+folders <- list.dirs(base_dir, recursive = FALSE)
+
+for (folder in folders) {
+  message("▶️ Klasör işleniyor: ", folder)
+  
+  # 📄 filtered_DEGs.csv kontrol et
+  deg_file <- file.path(folder, "filtered_DEGs.csv")
+  if (!file.exists(deg_file)) {
+    message("⛔ filtered_DEGs.csv bulunamadı: ", folder)
+    next
+  }
+  
+  tryCatch({
+    degs <- read.csv(deg_file)
+    
+    # 🔼 Upregulated: log2FC >= 1 & padj < 0.05
+    up <- degs %>% filter(log2FoldChange >= 1, padj < 0.05)
+    write.csv(up, file.path(folder, "upregulated_DEGs.csv"), row.names = FALSE)
+    
+    # 🔽 Downregulated: log2FC <= -1 & padj < 0.05
+    down <- degs %>% filter(log2FoldChange <= -1, padj < 0.05)
+    write.csv(down, file.path(folder, "downregulated_DEGs.csv"), row.names = FALSE)
+    
+    message("✅ Up/Down dosyaları kaydedildi.")
+  }, error = function(e) {
+    message("❌ Hata: ", e$message)
+  })
+} 
+
+
+
+
+
+###count seperation ####
+
+# Gerekli paket
+library(tidyverse)
+library(biomaRt)
+
+# Ana dizin ve dosyalar
+base_dir <- "/Users/merveyilmaz/Desktop/USA_bioinformatic/Macrophage_19.06.25/Trimmed_data_21_07.25/deseq2_results_23.07.2025"
+full_counts <- read.csv("/Users/merveyilmaz/Desktop/USA_bioinformatic/Macrophage_19.06.25/Trimmed_data_21_07.25/count_corrected.csv", 
+                        row.names = 1, check.names = FALSE)
+
+metadata <- read.table(header = TRUE, text = "
+SampleName	Group	SampleCode
+olfr2KO-OxLDL-1_S120	KO_OxLDL	KO_OxLDL-1
+olfr2KO-OxLDL-2_S121	KO_OxLDL	KO_OxLDL-2
+olfr2KO-OxLDL-3_S122	KO_OxLDL	KO_OxLDL-3
+olfr2KO-FC-1-_S114	KO_FC	KO_FC-1
+olfr2KO-FC-2_S115	KO_FC	KO_FC-2
+olfr2KO-FC-3_S116	KO_FC	KO_FC-3
+olfr2KO-NC-1_S123	KO_NC	KO_NC-1
+olfr2KO-NC-2_S124	KO_NC	KO_NC-2
+olfr2WT-FC-2_S127	WT_FC	WT_FC-2
+olfr2KO-AcLDL-1_S117	KO_AcLDL	KO_AcLDL-1
+olfr2KO-AcLDL-2_S118	KO_AcLDL	KO_AcLDL-2
+olfr2KO-AcLDL-3_S119	KO_AcLDL	KO_AcLDL-3
+olfr2WT-OxLDL-1_S132	WT_OxLDL	WT_OxLDL-1
+olfr2WT-AcLDL-2_S130	WT_AcLDL	WT_AcLDL-2
+olfr2WT-AcLDL-3_S131	WT_AcLDL	WT_AcLDL-3
+olfr2WT-FC-1_S126	WT_FC	WT_FC-1
+olfr2KO-NC-3_S125	KO_NC	KO_NC-3
+olfr2WT-FC-3_S128	WT_FC	WT_FC-3
+olfr2WT-NC-1_S135	WT_NC	WT_NC-1
+olfr2WT-NC-2_S136	WT_NC	WT_NC-2
+olfr2WT-NC-3_S137	WT_NC	WT_NC-3
+olfr2WT-AcLDL-1_S129	WT_AcLDL	WT_AcLDL-1
+olfr2WT-OxLDL-2_S133	WT_OxLDL	WT_OxLDL-2
+olfr2WT-OxLDL-3_S134	WT_OxLDL	WT_OxLDL-3
+", stringsAsFactors = FALSE)
+
+# 🧬 Ensembl ID'leri temizle
+ensembl_ids <- gsub("\\..*", "", rownames(full_counts))
+
+# 🧬 ID → Symbol eşlemesi
+mart <- useMart("ensembl", dataset = "mmusculus_gene_ensembl")
+gene_map <- getBM(attributes = c("ensembl_gene_id", "mgi_symbol"),
+                  filters = "ensembl_gene_id",
+                  values = ensembl_ids,
+                  mart = mart)
+
+# 🧬 Orijinal sıra için tekrar bağla
+gene_map <- gene_map %>% distinct(ensembl_gene_id, .keep_all = TRUE)
+symbol_df <- tibble(Ensembl_ID = ensembl_ids) %>%
+  left_join(gene_map, by = c("Ensembl_ID" = "ensembl_gene_id"))
+
+# 🔁 Klasör klasör işle
+folders <- list.dirs(base_dir, recursive = FALSE)
+
+for (folder in folders) {
+  cmp_name <- basename(folder)
+  if (!grepl("_vs_", cmp_name)) next
+  
+  groups <- unlist(strsplit(cmp_name, "_vs_"))
+  if (length(groups) != 2) next
+  
+  group1 <- groups[1]
+  group2 <- groups[2]
+  
+  sample_ids <- metadata %>%
+    filter(Group %in% c(group1, group2)) %>%
+    pull(SampleName)
+  
+  if (!all(sample_ids %in% colnames(full_counts))) next
+  
+  subset_counts <- full_counts[, sample_ids, drop = FALSE]
+  
+  # Gene isimlerini ilk kolona ekle
+  subset_counts <- cbind(GeneName = symbol_df$mgi_symbol, subset_counts)
+  
+  # Kaydet
+  write.csv(subset_counts, file = file.path(folder, "count_subset_with_symbols.csv"), row.names = FALSE)
+}
+
+
+
+
+
+# Gerekli paket
+library(tidyverse)
+
+# 📁 Ana dizin
+base_dir <- "/Users/merveyilmaz/Desktop/USA_bioinformatic/Macrophage_19.06.25/Trimmed_data_21_07.25/deseq2_results_23.07.2025"
+
+# 🔁 Tüm klasörleri gez
+folders <- list.dirs(base_dir, recursive = FALSE)
+
+for (folder in folders) {
+  old_file <- file.path(folder, "count_subset.csv")
+  
+  if (file.exists(old_file)) {
+    file.remove(old_file)
+    message("❌ Silindi: ", old_file)
+  } else {
+    message("✅ Yok: ", old_file)
+  }
+}
+
+
+
+
 
